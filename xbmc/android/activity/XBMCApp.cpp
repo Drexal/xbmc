@@ -730,6 +730,73 @@ bool CXBMCApp::HasLaunchIntent(const string &package)
   return true;
 }
 
+// External Player
+bool CXBMCApp::StartActivityWithExtra(const string &package,const string &path)
+{
+  if (!m_activity || !package.size())
+    return false;
+ 
+  jthrowable exc;
+  JNIEnv *env = NULL;
+  AttachCurrentThread(&env);
+  jobject oActivity = m_activity->clazz;
+  jclass cActivity = env->GetObjectClass(oActivity);
+   
+   
+   
+ // Intent oIntent = new Intent(Intent.ACTION_VIEW);
+ jclass cIntent = env->FindClass("android/content/Intent");
+ jmethodID midIntentCtor = env->GetMethodID(cIntent, "<init>", "(Ljava/lang/String;)V");
+ jstring sIntentView = env->NewStringUTF("android.intent.action.VIEW"); // Intent.ACTION_VIEW
+ jobject oIntent = env->NewObject(cIntent, midIntentCtor, sIntentView);
+ env->DeleteLocalRef(sIntentView);
+  
+ // Uri oUri = Uri.parse(sPath);
+ jclass cUri = env->FindClass("android/net/Uri");
+ jmethodID midUriParse = env->GetStaticMethodID(cUri, "parse", "(Ljava/lang/String;)Landroid/net/Uri;");
+ jstring sPath = env->NewStringUTF(path.c_str());
+ jobject oUri = env->CallStaticObjectMethod(cUri, midUriParse, sPath);
+ env->DeleteLocalRef(sPath);
+ env->DeleteLocalRef(cUri);
+  
+ // oIntent.setDataAndType(oUri, "video/*");
+ jmethodID midIntentSetDataAndType = env->GetMethodID(cIntent, "setDataAndType", "(Landroid/net/Uri;Ljava/lang/String;)Landroid/content/Intent;");
+ jstring sMimeType = NULL;
+ sMimeType = env->NewStringUTF("video/*");
+ oIntent = env->CallObjectMethod(oIntent, midIntentSetDataAndType, oUri, sMimeType);
+  
+ // oIntent.setPackage("mxtech....");
+ jstring sPackage = env->NewStringUTF(package.c_str());
+ jmethodID mSetPackage = env->GetMethodID(cIntent, "setPackage", "(Ljava/lang/String;)Landroid/content/Intent;");
+ oIntent = env->CallObjectMethod(oIntent, mSetPackage, sPackage);
+  
+ env->DeleteLocalRef(sMimeType);
+ env->DeleteLocalRef(oUri);
+ env->DeleteLocalRef(cIntent);
+ env->DeleteLocalRef(sPackage);
+   
+ 
+  // startActivity(oIntent);
+  jmethodID mStartActivity = env->GetMethodID(cActivity, "startActivity", "(Landroid/content/Intent;)V");
+  env->CallVoidMethod(oActivity, mStartActivity, oIntent);
+  env->DeleteLocalRef(cActivity);
+  env->DeleteLocalRef(oIntent);
+ 
+  exc = env->ExceptionOccurred();
+  if (exc)
+  {
+    CLog::Log(LOGERROR, "CXBMCApp::StartActivity Failed to load %s. Exception follows:", package.c_str());
+    env->ExceptionDescribe();
+    env->ExceptionClear();
+    DetachCurrentThread();
+    return false;
+  }
+ 
+  DetachCurrentThread();
+  return true;
+}
+// End External Player
+
 bool CXBMCApp::StartActivity(const string &package)
 {
   if (!m_activity || !package.size())
